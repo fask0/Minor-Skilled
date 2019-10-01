@@ -18,8 +18,8 @@ APlayerPawn::APlayerPawn()
 	bUseControllerRotationRoll = false;
 
 	capsuleComponent = CreateDefaultSubobject<UCapsuleComponent>("CapsuleComponent");
-	capsuleComponent->SetCapsuleHalfHeight(64.0f);
-	capsuleComponent->SetCapsuleRadius(32.0f);
+	capsuleComponent->SetCapsuleHalfHeight(16.0f);
+	capsuleComponent->SetCapsuleRadius(8.0f);
 
 	cameraBoom = CreateDefaultSubobject<USpringArmComponent>("CameraBoom");
 	cameraBoom->SetupAttachment(RootComponent);
@@ -85,7 +85,7 @@ void APlayerPawn::UpdateAnimation()
 
 void APlayerPawn::MoveRight(float pValue)
 {
-	AddMovementInput(FVector(1.0f, 0.0f, 0.0f), pValue);
+	APlayerPawn::AddMovementInput(FVector(1.0f, 0.0f, 0.0f), pValue);
 }
 
 void APlayerPawn::Jump()
