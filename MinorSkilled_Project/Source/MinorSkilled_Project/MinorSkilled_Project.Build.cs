@@ -4,10 +4,10 @@ using UnrealBuildTool;
 
 public class MinorSkilled_Project : ModuleRules
 {
-	public MinorSkilled_Project(ReadOnlyTargetRules Target) : base(Target)
-	{
-		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
+    public MinorSkilled_Project(ReadOnlyTargetRules Target) : base(Target)
+    {
+        PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 
-		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "Paper2D" });
-	}
+        PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "Paper2D", "AIModule", "GameplayTasks", "UMG", "Slate", "SlateCore" });
+    }
 }

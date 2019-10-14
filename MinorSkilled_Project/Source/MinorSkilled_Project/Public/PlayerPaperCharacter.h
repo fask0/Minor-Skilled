@@ -23,8 +23,22 @@ public:
 
 protected:
 	virtual void BeginPlay() override;
+	void UpdatePlayer(float pDeltaTime);
+	void UpdateAnimation(FVector pPlayerVelocity);
+	void MoveRight(float pValue);
+	void Dodge();
+	void Attack();
+	void UpdateAttacking(float pDeltaTime);
+	void Hit();
+	UFUNCTION()
+		void OnMeleeOverlapBegin(UPrimitiveComponent *OverlappedComponent,
+								 AActor *OtherActor,
+								 UPrimitiveComponent *OtherComp,
+								 int32 OtherBodyIndex,
+								 bool bFromSweep,
+								 const FHitResult &SweepResult);
 
-	//Camera
+	   //Camera
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Camera, meta = (AllowPrivateAccess = "true"))
 		class UCameraComponent *SideViewCamera;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Camera, meta = (AllowPrivateAccess = "true"))
@@ -46,18 +60,26 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Animations)
 		class UPaperFlipbook *DodgeAnimation;
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Camera, meta = (AllowPrivateAccess = "true"))
+		class UCapsuleComponent *MeleeAttackHitBox;
+
 	UPROPERTY(EditAnywhere, Category = "Character Movement")
 		float DodgeForce;
 	UPROPERTY(EditAnywhere, Category = "Character Movement")
 		float DodgeDuration;
 
-	void UpdatePlayer(float pDeltaTime);
-	void UpdateAnimation(FVector pPlayerVelocity);
-	void MoveRight(float pValue);
-	void Dodge();
-
 	class UCharacterMovementComponent *MovementComponent;
 	float DodgeTime;
 	float OriginalMaxWalkSpeed;
 	bool IsDodging = false;
+
+	//Melee Attack
+	UPROPERTY(EditAnywhere, Category = "Melee Attack")
+		TArray<int> ComboEndKeyframes;
+	UPROPERTY(EditAnywhere, Category = "Melee Attack")
+		float SwingMomentum;
+	int MeleeAttackFrameToSkip = 0;
+	bool CanEnableMeleeHit = true;
+	bool IsAttacking = false;
+	bool IsAnotherAttackQueued = false;
 };
