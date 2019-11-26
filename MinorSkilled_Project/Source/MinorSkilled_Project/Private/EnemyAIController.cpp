@@ -26,7 +26,6 @@ void AEnemyAIController::OnPossess(APawn *pPawn)
 		BlackboardComponent->InitializeBlackboard(*EnemyCharacter->BehaviourTree->BlackboardAsset);
 
 		TargetKeyID = BlackboardComponent->GetKeyID("Target");
-		TargetLocationKeyID = BlackboardComponent->GetKeyID("TargetLocation");
 
 		BehaviourTreeComponent->StartTree(*EnemyCharacter->BehaviourTree);
 	}

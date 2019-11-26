@@ -20,13 +20,22 @@ EBTNodeResult::Type UBTTask_MoveToPlayer::ExecuteTask(UBehaviorTreeComponent &pO
 
 	if(player)
 	{
+		const FVector playerLocation = player->GetActorLocation();
+		const FVector enemyLocation = enemyController->EnemyCharacter->GetActorLocation();
+		const float distanceToPlayer = FVector::Dist(enemyLocation, playerLocation);
+		enemyController->EnemyCharacter->CurrTargetLocation = playerLocation;
+
 		if(enemyController->EnemyCharacter->ShouldWait)
 		{
-			FVector dist = player->GetActorLocation() - enemyController->EnemyCharacter->GetActorLocation();
+			FVector dist = playerLocation - enemyLocation;
 			float dir = FVector::DotProduct(dist, enemyController->EnemyCharacter->GetActorForwardVector());
 			if(dir < 0)
 				enemyController->SetControlRotation(FRotator(0, enemyController->EnemyCharacter->GetActorRotation().Yaw - 180, 0));
-			return EBTNodeResult::Succeeded;
+		}
+
+		if(distanceToPlayer <= AcceptanceRadius * 2)
+		{
+			return EBTNodeResult::Failed;
 		}
 
 		if(enemyController->EnemyCharacter->IsInAir)
@@ -35,12 +44,13 @@ EBTNodeResult::Type UBTTask_MoveToPlayer::ExecuteTask(UBehaviorTreeComponent &pO
 		}
 		else
 		{
-			const float zDifference = player->GetActorLocation().Z - enemyController->EnemyCharacter->GetActorLocation().Z;
-			if(player->GetVelocity().Z != 0 && (zDifference > 0 && zDifference < AcceptanceRadius * 3))
-				enemyController->MoveToLocation(FVector(player->GetActorLocation().X, player->GetActorLocation().Y, enemyController->EnemyCharacter->GetActorLocation().Z), AcceptanceRadius, true, true, false, 0, false);
+			const float zDifference = playerLocation.Z - enemyLocation.Z;
+			if(player->GetVelocity().Z != 0 && (zDifference > 0 && zDifference < AcceptanceRadius * 4))
+				enemyController->MoveToLocation(FVector(playerLocation.X, playerLocation.Y, enemyLocation.Z), AcceptanceRadius, true, true, false, 0, false);
 			else if(!enemyController->MoveToActor(player, AcceptanceRadius, true, true, false, 0, false))
 				enemyController->MoveToActor(player, AcceptanceRadius, true, false, false, 0, false);
 		}
+
 		return EBTNodeResult::Succeeded;
 	}
 	else

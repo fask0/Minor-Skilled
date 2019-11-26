@@ -1,13 +1,13 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 
+#include "BTService_CheckForPlayer.h"
 #include "BehaviorTree/BehaviorTree.h"
 #include "BehaviorTree/BehaviorTreeComponent.h"
 #include "BehaviorTree/BlackboardComponent.h"
 #include "BehaviorTree/Blackboard/BlackboardKeyAllTypes.h"
 #include "EnemyAIController.h"
 #include "EnemyPaperCharacter.h"
-#include "BTService_CheckForPlayer.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "GameFramework/PlayerController.h"
@@ -29,7 +29,6 @@ void UBTService_CheckForPlayer::TickNode(UBehaviorTreeComponent &pOwnerComp, uin
 		if(player)
 		{
 			pOwnerComp.GetBlackboardComponent()->SetValue<UBlackboardKeyType_Object>(enemyController->TargetKeyID, player);
-			pOwnerComp.GetBlackboardComponent()->SetValue<UBlackboardKeyType_Vector>(enemyController->TargetLocationKeyID, player->GetTargetLocation());
 		}
 	}
 }

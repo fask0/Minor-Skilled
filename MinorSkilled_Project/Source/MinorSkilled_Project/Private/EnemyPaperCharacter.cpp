@@ -5,6 +5,25 @@
 #include "PaperCharacter.h"
 #include "PaperFlipbookComponent.h"
 #include "UserWidget.h"
+#include "Components/CapsuleComponent.h"
+#include "Components/PrimitiveComponent.h"
+#include "PlayerPaperCharacter.h"
+#include "GameFramework/Actor.h"
+#include "Engine/Engine.h"
+
+AEnemyPaperCharacter::AEnemyPaperCharacter()
+{
+	MeleeAttackHitBox = CreateDefaultSubobject<UCapsuleComponent>("MeleeAttackHitBox");
+	MeleeAttackHitBox->SetupAttachment(RootComponent);
+}
+
+void AEnemyPaperCharacter::BeginPlay()
+{
+	APaperCharacter::BeginPlay();
+
+	MeleeAttackHitBox->OnComponentBeginOverlap.AddDynamic(this, &AEnemyPaperCharacter::OnMeleeOverlapBegin);
+	MeleeAttackHitBox->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+}
 
 void AEnemyPaperCharacter::Tick(float pDeltaTime)
 {
@@ -25,6 +44,11 @@ void AEnemyPaperCharacter::TakeDamage(int pDamage, FVector pPlayerForward, float
 void AEnemyPaperCharacter::SetShouldWait(bool pToggle)
 {
 	ShouldWait = pToggle;
+}
+
+void AEnemyPaperCharacter::Attack()
+{
+	IsAttacking = true;
 }
 
 void AEnemyPaperCharacter::UpdateEnemy(float pDeltaTime)
@@ -53,7 +77,20 @@ void AEnemyPaperCharacter::UpdateAnimation(FVector pVelocity)
 	IsInAir = false;
 
 	UPaperFlipbook *desiredAnimation;
-	if(isJumping)
+	if(ShouldChangeSpriteLocationWhenAttacking)
+		GetSprite()->SetRelativeLocation(OriginalSpriteLocation);
+
+	if(IsAttacking)
+	{
+		desiredAnimation = AttackAnimation;
+
+		MeleeAttackHitBox->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		Hit();
+
+		if(ShouldChangeSpriteLocationWhenAttacking)
+			GetSprite()->SetRelativeLocation(AttackAnimationLocation);
+	}
+	else if(isJumping)
 	{
 		IsInAir = true;
 		desiredAnimation = JumpingAnimation;
@@ -84,7 +121,8 @@ void AEnemyPaperCharacter::UpdateAnimation(FVector pVelocity)
 
 		if(desiredAnimation == JumpingAnimation ||
 		   desiredAnimation == FallingAnimation ||
-		   desiredAnimation == LandingAnimation)
+		   desiredAnimation == LandingAnimation ||
+		   desiredAnimation == AttackAnimation)
 		{
 			GetSprite()->SetLooping(false);
 		}
@@ -93,4 +131,29 @@ void AEnemyPaperCharacter::UpdateAnimation(FVector pVelocity)
 			GetSprite()->SetLooping(true);
 		}
 	}
+}
+
+void AEnemyPaperCharacter::Hit()
+{
+	const float animationPositionInFrames = GetSprite()->GetPlaybackPositionInFrames();
+	if(animationPositionInFrames >= MeleeAttackFrameRange.X && animationPositionInFrames <= MeleeAttackFrameRange.Y)
+	{
+		MeleeAttackHitBox->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+	}
+
+	if(animationPositionInFrames >= GetSprite()->GetFlipbookLengthInFrames() - 1)
+	{
+		AlreadyDidDamgeToPlayerThisAnimation = false;
+		IsAttacking = false;
+		MeleeAttackHitBox->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	}
+}
+
+void AEnemyPaperCharacter::OnMeleeOverlapBegin(UPrimitiveComponent *OverlappedComponent, AActor *OtherActor, UPrimitiveComponent *OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult &SweepResult)
+{
+	APlayerPaperCharacter *player = Cast<APlayerPaperCharacter>(OtherActor);
+	if(!player || AlreadyDidDamgeToPlayerThisAnimation) return;
+
+	player->TakeDamage(MeleeDamage, GetActorForwardVector(), MeleeAttackKnockback);
+	AlreadyDidDamgeToPlayerThisAnimation = true;
 }

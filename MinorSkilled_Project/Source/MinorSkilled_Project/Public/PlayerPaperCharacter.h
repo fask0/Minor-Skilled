@@ -19,6 +19,9 @@ public:
 	APlayerPaperCharacter();
 
 	virtual void Tick(float pDeltaTime) override;
+	void TakeDamage(int pDamage, FVector pEnemyForward, float pKnockbackForce);
+	UFUNCTION(BlueprintImplementableEvent, Category = Damage)
+		void OnTakeDamageEvent(int pDamage);
 	virtual void SetupPlayerInputComponent(class UInputComponent *pInputComponent) override;
 
 protected:
@@ -26,8 +29,11 @@ protected:
 	void UpdatePlayer(float pDeltaTime);
 	void UpdateAnimation(FVector pPlayerVelocity);
 	void MoveRight(float pValue);
+	virtual void Jump() override;
 	void Dodge();
 	void Attack();
+	void StartAttack();
+	void StopAttack();
 	void UpdateAttacking(float pDeltaTime);
 	void Hit();
 	UFUNCTION()
@@ -48,7 +54,11 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Animations)
 		class UPaperFlipbook *IdleAnimation;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Animations)
+		class UPaperFlipbook *IdleAnimationWithSword;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Animations)
 		class UPaperFlipbook *RunningAnimation;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Animations)
+		class UPaperFlipbook *RunningAnimationWithSword;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Animations)
 		class UPaperFlipbook *JumpingAnimation;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Animations)
@@ -58,7 +68,13 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Animations)
 		class UPaperFlipbook *AttackAnimation;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Animations)
-		class UPaperFlipbook *DodgeAnimation;
+		class UPaperFlipbook *DrawSwordAnimation;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Animations)
+		class UPaperFlipbook *SheathSwordAnimation;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Animations)
+		class UPaperFlipbook *SlideAnimation;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Animations)
+		class UPaperFlipbook *StandUpAnimation;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Camera, meta = (AllowPrivateAccess = "true"))
 		class UCapsuleComponent *MeleeAttackHitBox;
@@ -78,8 +94,23 @@ protected:
 		TArray<int> ComboEndKeyframes;
 	UPROPERTY(EditAnywhere, Category = "Melee Attack")
 		float SwingMomentum;
+	UPROPERTY(EditAnywhere, Category = "Melee Attack")
+		float MeleeBaseDamage;
+	UPROPERTY(EditAnywhere, Category = "Melee Attack")
+		float MeleeMultiplierPerCombo;
+	UPROPERTY(EditAnywhere, Category = "Melee Attack")
+		float MeleeAttackKnockback;
+
 	int MeleeAttackFrameToSkip = 0;
+	int CurrentComboCount = 0;
+	int FramesAfterKnockback = 0;
+	FVector EnemyForward;
+	float KnockbackTime = 0;
+	bool IsKnockbacked = false;
+	bool IsInCombat = false;
+	bool ShouldAttack = false;
 	bool CanEnableMeleeHit = true;
 	bool IsAttacking = false;
 	bool IsAnotherAttackQueued = false;
+	bool ActiveIFrames = false;
 };

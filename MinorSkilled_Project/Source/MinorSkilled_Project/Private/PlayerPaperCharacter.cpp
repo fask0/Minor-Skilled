@@ -45,13 +45,25 @@ void APlayerPaperCharacter::Tick(float pDeltaTime)
 	UpdatePlayer(pDeltaTime);
 }
 
+void APlayerPaperCharacter::TakeDamage(int pDamage, FVector pEnemyForward, float pKnockbackForce)
+{
+	if(ActiveIFrames) return;
+
+	OnTakeDamageEvent(pDamage);
+	KnockbackTime = pKnockbackForce;
+	EnemyForward = pEnemyForward;
+	if(KnockbackTime > 0)
+		IsKnockbacked = true;
+}
+
 void APlayerPaperCharacter::SetupPlayerInputComponent(class UInputComponent *pInputComponent)
 {
 	Super::SetupPlayerInputComponent(pInputComponent);
 
-	pInputComponent->BindAction("Jump", IE_Pressed, this, &APaperCharacter::Jump);
+	pInputComponent->BindAction("Jump", IE_Pressed, this, &APlayerPaperCharacter::Jump);
 	pInputComponent->BindAction("Dodge", IE_Pressed, this, &APlayerPaperCharacter::Dodge);
-	pInputComponent->BindAction("Attack", IE_Pressed, this, &APlayerPaperCharacter::Attack);
+	pInputComponent->BindAction("Attack", IE_Pressed, this, &APlayerPaperCharacter::StartAttack);
+	pInputComponent->BindAction("Attack", IE_Released, this, &APlayerPaperCharacter::StopAttack);
 	pInputComponent->BindAxis("MoveRight", this, &APlayerPaperCharacter::MoveRight);
 }
 
@@ -67,7 +79,24 @@ void APlayerPaperCharacter::BeginPlay()
 
 void APlayerPaperCharacter::UpdatePlayer(float pDeltaTime)
 {
-	const FVector playerVelocity = GetVelocity();
+
+	if(IsKnockbacked)
+	{
+		if(KnockbackTime <= 0)
+		{
+			IsKnockbacked = false;
+		}
+		else
+		{
+			KnockbackTime -= pDeltaTime;
+			AddMovementInput(EnemyForward, 100);
+			FramesAfterKnockback = 0;
+		}
+	}
+	else
+	{
+		FramesAfterKnockback++;
+	}
 
 	if(IsDodging)
 	{
@@ -77,6 +106,7 @@ void APlayerPaperCharacter::UpdatePlayer(float pDeltaTime)
 		if(DodgeTime <= 0)
 		{
 			MovementComponent->MaxWalkSpeed = OriginalMaxWalkSpeed;
+			ActiveIFrames = false;
 			IsDodging = false;
 		}
 		else
@@ -85,15 +115,19 @@ void APlayerPaperCharacter::UpdatePlayer(float pDeltaTime)
 		}
 	}
 
+	const FVector playerVelocity = GetVelocity();
+	Attack();
 	UpdateAnimation(playerVelocity);
 	UpdateAttacking(pDeltaTime);
 
 	float direction = playerVelocity.X;
-	if(Controller != nullptr)
+	if(Controller != nullptr && FramesAfterKnockback > 20)
+	{
 		if(direction < 0)
 			Controller->SetControlRotation(FRotator(0, 180, 0));
 		else if(direction > 0)
 			Controller->SetControlRotation(FRotator(0, 0, 0));
+	}
 
 	SetActorLocation(FVector(GetActorLocation().X, 0, GetActorLocation().Z));
 }
@@ -109,7 +143,7 @@ void APlayerPaperCharacter::UpdateAnimation(FVector pPlayerVelocity)
 	if(IsAttacking)
 	{
 		desiredAnimation = AttackAnimation;
-		MovementComponent->MaxWalkSpeed = OriginalMaxWalkSpeed * 0.05f;
+		MovementComponent->MaxWalkSpeed = OriginalMaxWalkSpeed * 0.01f;
 		MeleeAttackHitBox->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 		Hit();
 	}
@@ -158,28 +192,47 @@ void APlayerPaperCharacter::MoveRight(float pValue)
 	AddMovementInput(FVector(1, 0, 0), pValue);
 }
 
+void APlayerPaperCharacter::Jump()
+{
+	if(IsDodging || IsAttacking) return;
+	APaperCharacter::Jump();
+}
+
 void APlayerPaperCharacter::Dodge()
 {
 	if(IsDodging || IsAttacking) return;
 
 	DodgeTime = DodgeDuration;
 
-	GetSprite()->SetFlipbook(DodgeAnimation);
+	GetSprite()->SetFlipbook(SlideAnimation);
 	GetSprite()->SetLooping(false);
 	GetSprite()->Play();
 
 	MovementComponent->MaxWalkSpeed = (GetVelocity().X == 0) ? DodgeForce : OriginalMaxWalkSpeed + DodgeForce;
 
+	ActiveIFrames = true;
 	IsDodging = true;
 }
 
 void APlayerPaperCharacter::Attack()
 {
-	if(IsDodging) return;
+	if(IsDodging || !ShouldAttack) return;
+	const float animationPositionInFrames = GetSprite()->GetPlaybackPositionInFrames();
 	if(IsAttacking)
 		IsAnotherAttackQueued = true;
 
 	IsAttacking = true;
+}
+
+void APlayerPaperCharacter::StartAttack()
+{
+	ShouldAttack = true;
+}
+
+void APlayerPaperCharacter::StopAttack()
+{
+	ShouldAttack = false;
+	IsAnotherAttackQueued = false;
 }
 
 void APlayerPaperCharacter::UpdateAttacking(float pDeltaTime)
@@ -240,6 +293,13 @@ void APlayerPaperCharacter::OnMeleeOverlapBegin(UPrimitiveComponent *OverlappedC
 {
 	AEnemyPaperCharacter *enemy = Cast<AEnemyPaperCharacter>(OtherActor);
 	if(!enemy) return;
-	enemy->TakeDamage(10, GetActorForwardVector(), 0.2f);
-	GEngine->AddOnScreenDebugMessage(-1, 2, FColor::Cyan, "Hitting enemy!");
+
+	//Check combo
+	const float animationPositionInFrames = GetSprite()->GetPlaybackPositionInFrames();
+	CurrentComboCount = 0;
+	for(int i = 0; i < ComboEndKeyframes.Num(); ++i)
+		if(animationPositionInFrames > ComboEndKeyframes[i])
+			CurrentComboCount++;
+
+	enemy->TakeDamage(FMath::RoundFromZero(MeleeBaseDamage + MeleeBaseDamage * MeleeMultiplierPerCombo * CurrentComboCount), GetActorForwardVector(), MeleeAttackKnockback);
 }

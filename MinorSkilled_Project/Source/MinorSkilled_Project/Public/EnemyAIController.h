@@ -21,7 +21,6 @@ public:
 
 	class AEnemyPaperCharacter *EnemyCharacter;
 	uint8 TargetKeyID;
-	uint8 TargetLocationKeyID;
 
 protected:
 	UPROPERTY(Transient)
