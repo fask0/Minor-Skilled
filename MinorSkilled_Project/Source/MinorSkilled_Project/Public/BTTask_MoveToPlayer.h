@@ -20,4 +20,6 @@ public:
 protected:
 	UPROPERTY(EditAnywhere, Category = Movement)
 		float AcceptanceRadius;
+	UPROPERTY(EditAnywhere, Category = Movement)
+		float MeleeAttackRange;
 };

@@ -25,15 +25,23 @@ EBTNodeResult::Type UBTTask_MoveToPlayer::ExecuteTask(UBehaviorTreeComponent &pO
 		const float distanceToPlayer = FVector::Dist(enemyLocation, playerLocation);
 		enemyController->EnemyCharacter->CurrTargetLocation = playerLocation;
 
+		if(enemyController->EnemyCharacter->ShouldDropDown)
+		{
+			enemyController->MoveToLocation(enemyController->EnemyCharacter->GetActorLocation() + enemyController->EnemyCharacter->GetActorForwardVector() * 300, 0, true, false, false, 0, false);
+			return EBTNodeResult::Succeeded;
+		}
+
 		if(enemyController->EnemyCharacter->ShouldWait)
 		{
 			FVector dist = playerLocation - enemyLocation;
 			float dir = FVector::DotProduct(dist, enemyController->EnemyCharacter->GetActorForwardVector());
 			if(dir < 0)
-				enemyController->SetControlRotation(FRotator(0, enemyController->EnemyCharacter->GetActorRotation().Yaw - 180, 0));
+				enemyController->EnemyCharacter->TurnAround();
+
+			return EBTNodeResult::Succeeded;
 		}
 
-		if(distanceToPlayer <= AcceptanceRadius * 2)
+		if(distanceToPlayer <= MeleeAttackRange)
 		{
 			return EBTNodeResult::Failed;
 		}

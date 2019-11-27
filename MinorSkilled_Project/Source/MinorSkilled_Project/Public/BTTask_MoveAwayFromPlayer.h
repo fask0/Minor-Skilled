@@ -20,6 +20,11 @@ public:
 protected:
 	UPROPERTY(EditAnywhere, Category = Movement)
 		float AcceptanceRadius;
+	UPROPERTY(EditAnywhere, Category = Movement)
+		float MoveAwayDistance;
+	UPROPERTY(EditAnywhere, Category = Movement)
+		float AttackRange;
 
+	float moveAwayCooldown;
 	bool hasMovedAwayFromPlayer = true;
 };

@@ -8,15 +8,20 @@
 #include "BehaviorTree/BehaviorTreeComponent.h"
 #include "BehaviorTree/BlackboardComponent.h"
 #include "BehaviorTree/Blackboard/BlackboardKeyAllTypes.h"
-#include "Engine/Engine.h"
 #include "EnemyPaperCharacter.h"
-#include "Navigation/NavLinkProxy.h"
-#include "PaperCharacter.h"
-#include "PaperFlipbookComponent.h"
 
 EBTNodeResult::Type UBTTask_MeleeAttack::ExecuteTask(UBehaviorTreeComponent &pOwnerComp, uint8 *pNodeMemory)
 {
 	AEnemyAIController *enemyController = Cast<AEnemyAIController>(pOwnerComp.GetAIOwner());
+	APlayerPaperCharacter *player = Cast<APlayerPaperCharacter>(pOwnerComp.GetBlackboardComponent()->GetValue<UBlackboardKeyType_Object>(enemyController->TargetKeyID));
+
+	if(player)
+	{
+		FVector dist = player->GetActorLocation() - enemyController->EnemyCharacter->GetActorLocation();
+		float dir = FVector::DotProduct(dist, enemyController->EnemyCharacter->GetActorForwardVector());
+		if(dir < 0)
+			enemyController->EnemyCharacter->TurnAround();
+	}
 
 	enemyController->EnemyCharacter->Attack();
 

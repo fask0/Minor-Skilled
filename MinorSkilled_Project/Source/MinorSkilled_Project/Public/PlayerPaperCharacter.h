@@ -109,6 +109,7 @@ protected:
 	bool IsKnockbacked = false;
 	bool IsInCombat = false;
 	bool ShouldAttack = false;
+	bool ClearAttackQueue = true;
 	bool CanEnableMeleeHit = true;
 	bool IsAttacking = false;
 	bool IsAnotherAttackQueued = false;

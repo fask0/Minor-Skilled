@@ -29,6 +29,7 @@ void UBTService_CheckForPlayer::TickNode(UBehaviorTreeComponent &pOwnerComp, uin
 		if(player)
 		{
 			pOwnerComp.GetBlackboardComponent()->SetValue<UBlackboardKeyType_Object>(enemyController->TargetKeyID, player);
+			enemyController->EnemyCharacter->playerCharacter = player;
 		}
 	}
 }

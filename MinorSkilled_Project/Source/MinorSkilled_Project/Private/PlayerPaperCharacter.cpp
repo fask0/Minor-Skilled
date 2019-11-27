@@ -227,12 +227,18 @@ void APlayerPaperCharacter::Attack()
 void APlayerPaperCharacter::StartAttack()
 {
 	ShouldAttack = true;
+	if(IsAttacking)
+	{
+		IsAnotherAttackQueued = true;
+		ClearAttackQueue = false;
+	}
 }
 
 void APlayerPaperCharacter::StopAttack()
 {
 	ShouldAttack = false;
-	IsAnotherAttackQueued = false;
+	if(ClearAttackQueue)
+		IsAnotherAttackQueued = false;
 }
 
 void APlayerPaperCharacter::UpdateAttacking(float pDeltaTime)
@@ -263,6 +269,7 @@ void APlayerPaperCharacter::UpdateAttacking(float pDeltaTime)
 			{
 				IsAnotherAttackQueued = false;
 				CanEnableMeleeHit = true;
+				ClearAttackQueue = true;
 				MeleeAttackFrameToSkip = animationPositionInFrames;
 				return;
 			}
@@ -272,6 +279,7 @@ void APlayerPaperCharacter::UpdateAttacking(float pDeltaTime)
 
 void APlayerPaperCharacter::Hit()
 {
+	if(GetSprite()->GetFlipbook() != AttackAnimation) return;
 	const float animationPositionInFrames = GetSprite()->GetPlaybackPositionInFrames();
 	for(int i = 0; i < ComboEndKeyframes.Num(); ++i)
 	{
