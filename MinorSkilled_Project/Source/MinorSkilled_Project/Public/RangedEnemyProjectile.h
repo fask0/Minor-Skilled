@@ -24,6 +24,8 @@ public:
 		int Damage;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Variable")
 		float Knockback;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Variable")
+		bool isTickEnabled = true;
 
 	UFUNCTION()
 		void OnOtherOverlapBegin(UPrimitiveComponent *OverlappedComponent,

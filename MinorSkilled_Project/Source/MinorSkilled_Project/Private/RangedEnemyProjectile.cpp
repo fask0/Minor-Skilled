@@ -18,6 +18,7 @@ void ARangedEnemyProjectile::BeginPlay()
 void ARangedEnemyProjectile::Tick(float pDeltaTime)
 {
 	Super::Tick(pDeltaTime);
+	if(!isTickEnabled) return;
 
 	SetActorLocation(GetActorLocation() + GetActorForwardVector() * TravelSpeed * pDeltaTime);
 	lifeSpawn -= pDeltaTime;

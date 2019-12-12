@@ -17,6 +17,8 @@ EBTNodeResult::Type UBTTask_MoveAwayFromPlayer::ExecuteTask(UBehaviorTreeCompone
 {
 	AEnemyAIController *enemyController = Cast<AEnemyAIController>(pOwnerComp.GetAIOwner());
 
+	if(enemyController->EnemyCharacter->BehaviourIsPaused) return EBTNodeResult::Succeeded;
+
 	APlayerPaperCharacter *player = Cast<APlayerPaperCharacter>(pOwnerComp.GetBlackboardComponent()->GetValue<UBlackboardKeyType_Object>(enemyController->TargetKeyID));
 
 	if(player)
@@ -35,7 +37,7 @@ EBTNodeResult::Type UBTTask_MoveAwayFromPlayer::ExecuteTask(UBehaviorTreeCompone
 					return EBTNodeResult::Failed;
 				}
 
-				enemyController->EnemyCharacter->CurrTargetLocation = playerLocation;
+				enemyController->EnemyCharacter->SetCurrentTargetLocation(playerLocation);
 				if(enemyController->EnemyCharacter->ShouldWait)
 				{
 					FVector dist = playerLocation - enemyLocation;
@@ -83,7 +85,7 @@ EBTNodeResult::Type UBTTask_MoveAwayFromPlayer::ExecuteTask(UBehaviorTreeCompone
 		}
 		else if(!hasMovedAwayFromPlayer)
 		{
-			enemyController->EnemyCharacter->CurrTargetLocation = enemyController->EnemyCharacter->RandomLocationOnNavArea;
+			enemyController->EnemyCharacter->SetCurrentTargetLocation(enemyController->EnemyCharacter->RandomLocationOnNavArea);
 
 			if(enemyController->EnemyCharacter->ShouldDropDown)
 			{
@@ -108,6 +110,10 @@ EBTNodeResult::Type UBTTask_MoveAwayFromPlayer::ExecuteTask(UBehaviorTreeCompone
 			if(FVector::Dist(enemyLocation, enemyController->EnemyCharacter->RandomLocationOnNavArea) <= 150)
 			{
 				hasMovedAwayFromPlayer = true;
+				FVector dist = player->GetActorLocation() - enemyController->EnemyCharacter->GetActorLocation();
+				float dir = FVector::DotProduct(dist, enemyController->EnemyCharacter->GetActorForwardVector());
+				if(dir < 0)
+					enemyController->EnemyCharacter->TurnAround();
 				return EBTNodeResult::Failed;
 			}
 			return EBTNodeResult::Succeeded;

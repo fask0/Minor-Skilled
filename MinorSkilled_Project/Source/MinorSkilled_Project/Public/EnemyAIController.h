@@ -19,7 +19,6 @@ public:
 
 	virtual void OnPossess(APawn *pPawn) override;
 
-
 	class AEnemyPaperCharacter *EnemyCharacter;
 	uint8 TargetKeyID;
 

@@ -11,10 +11,12 @@
  */
 
 UENUM(BlueprintType)
-enum class EnemyAIBehaviour : uint8
+enum class EnemyType : uint8
 {
-	AlwaysFollow,
-	DontAlwaysFollow
+	MeleeSkeleton,
+	RangedWizard,
+	RevivingMeleeSkeleton,
+	CircleAttackRangedWizard
 };
 
 UCLASS()
@@ -29,10 +31,14 @@ public:
 	UPROPERTY(EditAnywhere, Category = Behaviour)
 		class UBehaviorTree *BehaviourTree;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Enum)
-		EnemyAIBehaviour AIBehaviour;
+		EnemyType TypeOfEnemy;
 
 	virtual void BeginPlay() override;
 	virtual void Tick(float pDeltaTime) override;
+	virtual void Destroyed() override;
+	UFUNCTION(BlueprintCallable)
+		void Init();
+	void SetEnemyType(EnemyType pEnemyType);
 	void TurnAround();
 	void TakeDamage(int pDamage, FVector pPlayerForward, float pKnockbackForce);
 	UFUNCTION(BlueprintImplementableEvent, Category = Damage)
@@ -42,11 +48,17 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Movement)
 		FVector RandomLocationOnNavArea;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Movement)
+	UPROPERTY(BlueprintReadWrite)
 		FVector CurrTargetLocation;
+	void SetCurrentTargetLocation(FVector pNewTargetLocation);
+	UFUNCTION(BlueprintCallable)
+		FVector GetCurrentTargetLocation() { return CurrTargetLocation; }
+
 	bool IsInAir;
 	bool ShouldWait;
 	bool ShouldDropDown;
+	UPROPERTY(BlueprintReadWrite)
+		bool BehaviourIsPaused;
 
 	UFUNCTION(BlueprintCallable)
 		void SetShouldWait(bool pToggle);
@@ -58,12 +70,19 @@ public:
 	void RangeAttack();
 	UFUNCTION(BlueprintImplementableEvent)
 		void OnCraeteProjectileEvent(FVector pPlayerLocation);
+	UFUNCTION(BlueprintImplementableEvent)
+		void OnBeginPlayAfterCPPSetup();
+
+	int GetCurrentHealth() { return currentHealth; }
 
 protected:
 	void UpdateEnemy(float pDeltaTime);
 	void UpdateAnimation(FVector pVelocity);
 	void Hit();
 	void Shoot();
+	void CueDeath();
+	void Die();
+	void Revive();
 
 	UFUNCTION()
 		void OnMeleeOverlapBegin(UPrimitiveComponent *OverlappedComponent,
@@ -86,37 +105,74 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Animations)
 		class UPaperFlipbook *AttackAnimation;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Animations)
+		class UPaperFlipbook *RangedCircleAttackAnimation;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Animations)
+		class UPaperFlipbook *DeathAnimation;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Animations)
+		class UPaperFlipbook *ReviveAnimation;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Animations)
 		bool ShouldChangeSpriteLocationWhenAttacking = false;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Animations)
 		FVector AttackAnimationLocation;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Animations)
 		FVector OriginalSpriteLocation;
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Camera, meta = (AllowPrivateAccess = "true"))
-		class UCapsuleComponent *MeleeAttackHitBox;
+	ECollisionEnabled::Type originalCollisionEnabled;
 
 	//Melee Attack
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Melee Attack", meta = (AllowPrivateAccess = "true"))
+		class UCapsuleComponent *MeleeAttackHitBox;
 	UPROPERTY(EditAnywhere, Category = "Melee Attack")
-		float MeleeDamage;
+		int baseMeleeDamage;
 	UPROPERTY(EditAnywhere, Category = "Melee Attack")
-		float MeleeAttackKnockback;
+		float meleeAttackKnockback;
 	UPROPERTY(EditAnywhere, Category = "Melee Attack")
-		FVector MeleeAttackFrameRange;
+		FVector meleeAttackFrameRange;
 
-	FVector PlayerForward;
-	float KnockbackTime = 0;
-	bool IsKnockbacked = false;
-	bool IsAttacking = false;
-	bool AlreadyDidDamgeToPlayerThisAnimation = false;
+	FVector playerForward;
+	float knockbackTime = 0;
+	bool isKnockbacked = false;
+	bool isAttacking = false;
+	bool alreadyDidDamgeToPlayerThisAnimation = false;
 
 	//Range Attack
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Range Attack")
-		int RangedDamage;
+		int baseRangedDamage;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Range Attack")
-		float RangedKnockback;
+		float rangedKnockback;
 	UPROPERTY(EditAnywhere, Category = "Range Attack")
-		int AnimationFrameToCreateProjectile;
+		int animationFrameToCreateProjectile;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Range Attack - Circle Attack")
+		bool canUseCircleAttack;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Range Attack - Circle Attack")
+		float circleAttackDistFromCentre;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Range Attack - Circle Attack")
+		int circleAttackProjectileAmount;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Range Attack - Circle Attack")
+		float delayBeforeShooting;
 
+	UFUNCTION(BlueprintImplementableEvent)
+		void OnPrepareCircleAttack();
+	UPROPERTY(BlueprintReadWrite)
+		TArray<FVector> projectileLocationsInCircle;
 	bool isRangeAttacking = false;
 	bool hasProjectileBeenCrated = false;
+
+	UFUNCTION(BlueprintCallable)
+		void SetGameManager(AGameManager *pGameManager);
+	class AGameManager *gameManager;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "General Stats")
+		int baseHealth;
+	UPROPERTY(BlueprintReadWrite)
+		int currentHealth;
+	UPROPERTY(BlueprintReadWrite)
+		int maxHealth;
+	bool shouldDie;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "General Stats")
+		bool canRevive;
+	bool isReviving;
+
+	UPROPERTY(BlueprintReadWrite)
+		float behaviourActivationDelay;
 };

@@ -16,6 +16,8 @@ EBTNodeResult::Type UBTTask_MoveToPlayer::ExecuteTask(UBehaviorTreeComponent &pO
 {
 	AEnemyAIController *enemyController = Cast<AEnemyAIController>(pOwnerComp.GetAIOwner());
 
+	if(enemyController->EnemyCharacter->BehaviourIsPaused) return EBTNodeResult::Succeeded;
+
 	APlayerPaperCharacter *player = Cast<APlayerPaperCharacter>(pOwnerComp.GetBlackboardComponent()->GetValue<UBlackboardKeyType_Object>(enemyController->TargetKeyID));
 
 	if(player)
@@ -23,7 +25,7 @@ EBTNodeResult::Type UBTTask_MoveToPlayer::ExecuteTask(UBehaviorTreeComponent &pO
 		const FVector playerLocation = player->GetActorLocation();
 		const FVector enemyLocation = enemyController->EnemyCharacter->GetActorLocation();
 		const float distanceToPlayer = FVector::Dist(enemyLocation, playerLocation);
-		enemyController->EnemyCharacter->CurrTargetLocation = playerLocation;
+		enemyController->EnemyCharacter->SetCurrentTargetLocation(playerLocation);
 
 		if(enemyController->EnemyCharacter->ShouldDropDown)
 		{

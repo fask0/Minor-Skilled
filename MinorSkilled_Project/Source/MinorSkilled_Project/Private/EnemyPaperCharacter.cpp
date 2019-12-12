@@ -13,6 +13,7 @@
 #include "GameFramework/Actor.h"
 #include "Engine/Engine.h"
 #include "GameFramework/MovementComponent.h"
+#include "GameManager.h"
 
 AEnemyPaperCharacter::AEnemyPaperCharacter()
 {
@@ -27,13 +28,69 @@ void AEnemyPaperCharacter::BeginPlay()
 	MeleeAttackHitBox->OnComponentBeginOverlap.AddDynamic(this, &AEnemyPaperCharacter::OnMeleeOverlapBegin);
 	MeleeAttackHitBox->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	ShouldDropDown = false;
+	originalCollisionEnabled = GetCapsuleComponent()->GetCollisionEnabled();
 }
 
 void AEnemyPaperCharacter::Tick(float pDeltaTime)
 {
 	Super::Tick(pDeltaTime);
 
+	if(behaviourActivationDelay > 0)
+	{
+		BehaviourIsPaused = true;
+		behaviourActivationDelay -= pDeltaTime;
+		if(behaviourActivationDelay <= 0)
+			BehaviourIsPaused = false;
+	}
+
 	UpdateEnemy(pDeltaTime);
+}
+
+void AEnemyPaperCharacter::Destroyed()
+{
+	APaperCharacter::Destroyed();
+
+	if(gameManager)
+	{
+		gameManager->SpawnedEnemiesInlevel.Remove(this);
+	}
+}
+
+void AEnemyPaperCharacter::Init()
+{
+	switch(TypeOfEnemy)
+	{
+		case EnemyType::MeleeSkeleton:
+			canRevive = false;
+			break;
+		case EnemyType::RangedWizard:
+			canUseCircleAttack = false;
+			break;
+		case EnemyType::RevivingMeleeSkeleton:
+			canRevive = true;
+			break;
+		case EnemyType::CircleAttackRangedWizard:
+			canUseCircleAttack = true;
+			break;
+		default:
+			break;
+	}
+
+	if(gameManager)
+	{
+		gameManager->SpawnedEnemiesInlevel.Add(this);
+		currentHealth = baseHealth * (1 + gameManager->GetEnemyHealthScaling());
+	}
+	else
+		currentHealth = baseHealth;
+	maxHealth = currentHealth;
+
+	OnBeginPlayAfterCPPSetup();
+}
+
+void AEnemyPaperCharacter::SetEnemyType(EnemyType pEnemyType)
+{
+	TypeOfEnemy = pEnemyType;
 }
 
 void AEnemyPaperCharacter::TurnAround()
@@ -44,10 +101,26 @@ void AEnemyPaperCharacter::TurnAround()
 void AEnemyPaperCharacter::TakeDamage(int pDamage, FVector pPlayerForward, float pKnockbackForce)
 {
 	OnTakeDamageEvent(pDamage);
-	KnockbackTime = pKnockbackForce;
-	PlayerForward = pPlayerForward;
-	if(KnockbackTime > 0)
-		IsKnockbacked = true;
+
+	if(currentHealth - pDamage <= 0)
+	{
+		CueDeath();
+		currentHealth = 0;
+		knockbackTime = 0;
+		isKnockbacked = false;
+		return;
+	}
+
+	currentHealth -= pDamage;
+	knockbackTime = pKnockbackForce;
+	playerForward = pPlayerForward;
+	if(knockbackTime > 0)
+		isKnockbacked = true;
+}
+
+void AEnemyPaperCharacter::SetCurrentTargetLocation(FVector pNewTargetLocation)
+{
+	CurrTargetLocation = pNewTargetLocation;
 }
 
 void AEnemyPaperCharacter::SetShouldWait(bool pToggle)
@@ -62,7 +135,7 @@ void AEnemyPaperCharacter::SetShouldDropDown(bool pToggle)
 
 void AEnemyPaperCharacter::Attack()
 {
-	IsAttacking = true;
+	isAttacking = true;
 }
 
 void AEnemyPaperCharacter::RangeAttack()
@@ -74,13 +147,13 @@ void AEnemyPaperCharacter::UpdateEnemy(float pDeltaTime)
 {
 	const FVector velocity = GetVelocity();
 
-	if(IsKnockbacked)
+	if(isKnockbacked)
 	{
-		KnockbackTime -= pDeltaTime;
-		AddMovementInput(PlayerForward, 100);
+		knockbackTime -= pDeltaTime;
+		AddMovementInput(playerForward, 100);
 
-		if(KnockbackTime <= 0)
-			IsKnockbacked = false;
+		if(knockbackTime <= 0)
+			isKnockbacked = false;
 	}
 
 	UpdateAnimation(velocity);
@@ -100,14 +173,27 @@ void AEnemyPaperCharacter::UpdateAnimation(FVector pVelocity)
 	if(ShouldChangeSpriteLocationWhenAttacking)
 		GetSprite()->SetRelativeLocation(OriginalSpriteLocation);
 
-	if(IsAttacking)
+	if(isReviving)
+	{
+		desiredAnimation = ReviveAnimation;
+		Revive();
+	}
+	else if(shouldDie)
+	{
+		desiredAnimation = DeathAnimation;
+		Die();
+	}
+	else if(isAttacking)
 	{
 		desiredAnimation = AttackAnimation;
 		Hit();
 	}
 	else if(isRangeAttacking)
 	{
-		desiredAnimation = AttackAnimation;
+		if(canUseCircleAttack)
+			desiredAnimation = RangedCircleAttackAnimation;
+		else
+			desiredAnimation = AttackAnimation;
 		Shoot();
 	}
 	else if(isJumping)
@@ -139,10 +225,7 @@ void AEnemyPaperCharacter::UpdateAnimation(FVector pVelocity)
 		GetSprite()->SetFlipbook(desiredAnimation);
 		GetSprite()->Play();
 
-		if(desiredAnimation == JumpingAnimation ||
-		   desiredAnimation == FallingAnimation ||
-		   desiredAnimation == LandingAnimation ||
-		   desiredAnimation == AttackAnimation)
+		if(desiredAnimation != IdleAnimation || desiredAnimation != RunningAnimation)
 		{
 			GetSprite()->SetLooping(false);
 		}
@@ -162,27 +245,41 @@ void AEnemyPaperCharacter::Hit()
 	if(ShouldChangeSpriteLocationWhenAttacking)
 		GetSprite()->SetRelativeLocation(AttackAnimationLocation);
 
-	if(animationPositionInFrames >= MeleeAttackFrameRange.X && animationPositionInFrames <= MeleeAttackFrameRange.Y)
+	if(animationPositionInFrames >= meleeAttackFrameRange.X && animationPositionInFrames <= meleeAttackFrameRange.Y)
 	{
 		MeleeAttackHitBox->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
 	}
 
 	if(animationPositionInFrames >= GetSprite()->GetFlipbookLengthInFrames() - 1)
 	{
-		AlreadyDidDamgeToPlayerThisAnimation = false;
-		IsAttacking = false;
+		alreadyDidDamgeToPlayerThisAnimation = false;
+		isAttacking = false;
 		MeleeAttackHitBox->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	}
 }
 
 void AEnemyPaperCharacter::Shoot()
 {
-	if(GetSprite()->GetFlipbook() != AttackAnimation) return;
+	if(GetSprite()->GetFlipbook() != AttackAnimation && GetSprite()->GetFlipbook() != RangedCircleAttackAnimation) return;
 	const float animationPositionInFrames = GetSprite()->GetPlaybackPositionInFrames();
 
-	if(!hasProjectileBeenCrated && animationPositionInFrames == AnimationFrameToCreateProjectile)
+	if(!hasProjectileBeenCrated && animationPositionInFrames == animationFrameToCreateProjectile)
 	{
-		OnCraeteProjectileEvent(playerCharacter->GetActorLocation());
+		if(canUseCircleAttack)
+		{
+			projectileLocationsInCircle.Empty();
+			for(int i = 0; i < circleAttackProjectileAmount; i++)
+			{
+				float angle = i * 3.141592f * 2 / circleAttackProjectileAmount;
+				FVector newPos = FVector(FMath::Cos(angle) * circleAttackDistFromCentre, 0, FMath::Sin(angle) * circleAttackDistFromCentre);
+				projectileLocationsInCircle.Add(newPos);
+			}
+			OnPrepareCircleAttack();
+		}
+		else
+		{
+			OnCraeteProjectileEvent(playerCharacter->GetActorLocation());
+		}
 		hasProjectileBeenCrated = true;
 	}
 
@@ -193,11 +290,56 @@ void AEnemyPaperCharacter::Shoot()
 	}
 }
 
+void AEnemyPaperCharacter::CueDeath()
+{
+	shouldDie = true;
+	currentHealth = 0;
+	GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+}
+
+void AEnemyPaperCharacter::Die()
+{
+	if(GetSprite()->GetFlipbook() != DeathAnimation) return;
+	const float animationPositionInFrames = GetSprite()->GetPlaybackPositionInFrames();
+
+	if(animationPositionInFrames == GetSprite()->GetFlipbookLengthInFrames() - 1)
+	{
+		if(canRevive)
+		{
+			isReviving = true;
+			shouldDie = false;
+		}
+		else
+		{
+			Destroy();
+		}
+	}
+}
+
+void AEnemyPaperCharacter::Revive()
+{
+	if(GetSprite()->GetFlipbook() != ReviveAnimation) return;
+	const float animationPositionInFrames = GetSprite()->GetPlaybackPositionInFrames();
+
+	if(animationPositionInFrames == GetSprite()->GetFlipbookLengthInFrames() - 1)
+	{
+		canRevive = false;
+		isReviving = false;
+		currentHealth = maxHealth * 0.5f;
+		GetCapsuleComponent()->SetCollisionEnabled(originalCollisionEnabled);
+	}
+}
+
 void AEnemyPaperCharacter::OnMeleeOverlapBegin(UPrimitiveComponent *OverlappedComponent, AActor *OtherActor, UPrimitiveComponent *OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult &SweepResult)
 {
 	APlayerPaperCharacter *player = Cast<APlayerPaperCharacter>(OtherActor);
-	if(!player || AlreadyDidDamgeToPlayerThisAnimation) return;
+	if(!player || alreadyDidDamgeToPlayerThisAnimation) return;
 
-	player->TakeDamage(MeleeDamage, GetActorForwardVector(), MeleeAttackKnockback);
-	AlreadyDidDamgeToPlayerThisAnimation = true;
+	player->TakeDamage(baseMeleeDamage, GetActorForwardVector(), meleeAttackKnockback);
+	alreadyDidDamgeToPlayerThisAnimation = true;
+}
+
+void AEnemyPaperCharacter::SetGameManager(AGameManager *pGameManager)
+{
+	gameManager = pGameManager;
 }
